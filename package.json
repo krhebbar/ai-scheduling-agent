@@ -1,0 +1,65 @@
+{
+  "name": "ai-scheduling-agent",
+  "version": "1.0.0",
+  "description": "Intelligent meeting scheduling using natural language understanding and AI-powered recommendations",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "examples",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "example:basic": "npx ts-node examples/basic-scheduling.ts",
+    "example:smart": "npx ts-node examples/smart-recommendations.ts",
+    "example:conflicts": "npx ts-node examples/conflict-resolution.ts"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "scheduling",
+    "natural-language",
+    "nlp",
+    "nlu",
+    "openai",
+    "gpt-4",
+    "llm",
+    "machine-learning",
+    "calendar",
+    "interview-scheduling",
+    "meeting-scheduler",
+    "intelligent-assistant",
+    "chatbot",
+    "typescript"
+  ],
+  "author": "Ravindra Kanchikare (krhebber)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krhebber/ai-scheduling-agent.git"
+  },
+  "homepage": "https://github.com/krhebber/ai-scheduling-agent#readme",
+  "bugs": {
+    "url": "https://github.com/krhebber/ai-scheduling-agent/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "openai": "^4.24.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.2"
+  },
+  "dependencies": {}
+}
