@@ -16,39 +16,37 @@ The AI Scheduling Agent is an intelligent meeting scheduler that combines natura
 
 ## Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        User Interface                            │
-│  (Chat, Slack, API, CLI - integrations use SchedulingAgent)      │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     SchedulingAgent                              │
-│  • processMessage()  • bookSlot()  • learnPreferences()          │
-│  Orchestrates: NLU → Intelligence → Scheduling → Response        │
-└──┬──────────┬────────────┬─────────────┬────────────────────────┘
-   │          │            │             │
-   ▼          ▼            ▼             ▼
-┌────────┐ ┌─────────┐ ┌────────────┐ ┌──────────────┐
-│  NLU   │ │Intelligence│ │Integration│ │     LLM      │
-│        │ │            │ │           │ │              │
-│ Intent │ │   Slot    │ │ Scheduling│ │   OpenAI     │
-│Recogn. │ │Recommender│ │  Adapter  │ │   Provider   │
-│        │ │           │ │           │ │              │
-│Entity  │ │ Conflict  │ │           │ │   Prompt     │
-│Extract.│ │ Resolver  │ │           │ │  Templates   │
-│        │ │           │ │           │ │              │
-│Request │ │Preference │ │           │ │              │
-│Parser  │ │  Engine   │ │           │ │              │
-└────────┘ └─────────┘ └─────┬──────┘ └──────────────┘
-                             │
-                             ▼
-                   ┌────────────────────┐
-                   │ Scheduling Engine  │
-                   │ (interview-        │
-                   │  scheduling-engine)│
-                   └────────────────────┘
+```mermaid
+flowchart TD
+    A["User Interface<br/>(Chat, Slack, API, CLI)"] --> B["SchedulingAgent<br/>• processMessage() • bookSlot() • learnPreferences()<br/>Orchestrates: NLU → Intelligence → Scheduling → Response"]
+
+    B --> C["NLU"]
+    B --> D["Intelligence"]
+    B --> E["Integration"]
+    B --> F["LLM"]
+
+    subgraph C["NLU"]
+        C1["Intent<br/>Recognition"]
+        C2["Entity<br/>Extraction"]
+        C3["Request<br/>Parser"]
+    end
+
+    subgraph D["Intelligence"]
+        D1["Slot<br/>Recommender"]
+        D2["Conflict<br/>Resolver"]
+        D3["Preference<br/>Engine"]
+    end
+
+    subgraph E["Integration"]
+        E1["Scheduling<br/>Adapter"]
+    end
+
+    subgraph F["LLM"]
+        F1["OpenAI<br/>Provider"]
+        F2["Prompt<br/>Templates"]
+    end
+
+    E --> G["Scheduling Engine<br/>(interview-scheduling-engine)"]
 ```
 
 ## Component Details
@@ -282,37 +280,25 @@ class SchedulingAgent {
 
 ### Example: Schedule Interview Request
 
-```
-1. User Input:
-   "Schedule a technical interview with alice@company.com next Tuesday at 2pm"
+```mermaid
+flowchart TD
+    A["1. User Input:<br/>'Schedule a technical interview with alice@company.com<br/>next Tuesday at 2pm'"] --> B["2. NLU Processing"]
 
-2. NLU Processing:
-   Intent: schedule (confidence: 0.95)
-   Entities: {
-     people: ['alice@company.com'],
-     interviewType: 'technical',
-     datetime: { date: '2024-02-06', time: '14:00' },
-     duration: 60 (inferred)
-   }
+    B --> C["Intent: schedule (confidence: 0.95)<br/>Entities: {<br/>  people: ['alice@company.com'],<br/>  interviewType: 'technical',<br/>  datetime: { date: '2024-02-06', time: '14:00' },<br/>  duration: 60 (inferred)<br/>}"]
 
-3. Scheduling Integration:
-   → Transform to engine options
-   → Find available slots
-   ← Return 10 matching slots
+    C --> D["3. Scheduling Integration"]
 
-4. Intelligence Layer:
-   → Score each slot (6 factors)
-   → Rank by score
-   ← Return top 5 recommendations
+    D --> E["Transform to engine options<br/>↓<br/>Find available slots<br/>↓<br/>Return 10 matching slots"]
 
-5. Response Generation:
-   → LLM generates natural language
-   ← "I found 5 available slots..."
+    E --> F["4. Intelligence Layer"]
 
-6. User Response:
-   message: "I found 5 available slots...",
-   recommendedSlots: [ ... ],
-   confidence: 0.89
+    F --> G["Score each slot (6 factors)<br/>↓<br/>Rank by score<br/>↓<br/>Return top 5 recommendations"]
+
+    G --> H["5. Response Generation"]
+
+    H --> I["LLM generates natural language<br/>↓<br/>'I found 5 available slots...'"]
+
+    I --> J["6. User Response:<br/>message: 'I found 5 available slots...'<br/>recommendedSlots: [ ... ]<br/>confidence: 0.89"]
 ```
 
 ## Performance Optimization
