@@ -2,17 +2,22 @@
 
 This document provides a technical overview of the AI Scheduling Agent architecture, design decisions, and implementation details.
 
+**📊 For detailed flow diagrams and sequences, see [FLOW_DIAGRAMS.md](./FLOW_DIAGRAMS.md)**
+
 ## System Overview
 
 The AI Scheduling Agent is an experimental intelligent meeting scheduler that combines natural language understanding with AI-powered scheduling algorithms. It adds an AI layer on top of constraint-based scheduling to enable conversational interactions and smart recommendations.
 
+**Current Implementation:** Powered by OpenAI Agents JS SDK with multi-model support via Vercel's AI SDK.
+
 ### Design Principles
 
 1. **Separation of Concerns** - NLU, intelligence, and scheduling are separate modules
-2. **Extensibility** - Pluggable LLM providers and scheduling engines
+2. **Extensibility** - Pluggable LLM providers (OpenAI, Anthropic, Google) and scheduling engines
 3. **Type Safety** - Comprehensive TypeScript types throughout
 4. **Experimental** - Exploring AI-powered scheduling algorithms
 5. **Developer-Friendly** - Clean APIs and extensive documentation
+6. **Multi-Model Support** - Cost optimization through strategic model selection
 
 ## Architecture Diagram
 
@@ -177,23 +182,61 @@ const preferences = await preferenceEngine.learnPreferences(userId, history);
 
 ### 3. LLM Integration
 
-**Location:** `src/llm/`
+**Location:** `src/agent/SchedulingAgent.ts` (createModel method)
+
+**Current Architecture:** OpenAI Agents JS SDK with Vercel AI SDK for multi-model support
+
+**Supported Providers:**
+- **OpenAI** - GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
+- **Anthropic** - Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku
+- **Google** - Gemini 1.5 Pro, Gemini 1.5 Flash
 
 **Responsibilities:**
-- Communicate with LLM providers (OpenAI, etc.)
-- Manage prompt templates
-- Parse LLM responses
-- Handle errors and retries
+- Dynamically select LLM provider based on configuration
+- Set environment variables for AI SDK providers
+- Create AI SDK model instances with `aisdk()` adapter
+- Enable cost optimization through strategic model selection
 
-#### `OpenAILLMProvider`
+**Implementation:**
 
-GPT-4 integration for natural language understanding.
+```typescript
+private createModel() {
+  const { provider, model, apiKey } = this.config.llm;
+
+  // Set environment variables
+  if (apiKey) {
+    switch (provider) {
+      case 'openai':
+        process.env.OPENAI_API_KEY = apiKey;
+        break;
+      case 'anthropic':
+        process.env.ANTHROPIC_API_KEY = apiKey;
+        break;
+      case 'google':
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
+        break;
+    }
+  }
+
+  // Create AI SDK model
+  switch (provider) {
+    case 'openai':
+      return aisdk(openai(model));
+    case 'anthropic':
+      return aisdk(anthropic(model));
+    case 'google':
+      return aisdk(google(model));
+    default:
+      return aisdk(openai(model));  // Default to OpenAI
+  }
+}
+```
 
 **Features:**
-- Function calling for structured outputs
-- JSON mode for reliable parsing
-- Configurable temperature and max tokens
-- Retry logic for transient failures
+- Multi-model support via Vercel's AI SDK
+- Environment-based API key management
+- Cost optimization (Gemini Flash is 40x cheaper than GPT-4)
+- Strategic model selection for different task complexities
 
 **Prompt Templates:**
 
