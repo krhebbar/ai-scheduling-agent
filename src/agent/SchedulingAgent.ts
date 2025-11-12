@@ -8,6 +8,10 @@
  */
 
 import { Agent, run, tool } from '@openai/agents';
+import { aisdk } from '@openai/agents-extensions';
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import {
   AgentConfig,
@@ -64,11 +68,69 @@ export class SchedulingAgent {
     const tools = this.createTools();
 
     // Initialize OpenAI Agents SDK Agent
-    this.agent = new Agent({
+    // If using AI SDK providers (Anthropic, Google), create the model
+    const agentConfig: any = {
       name: 'SchedulingAgent',
       instructions: this.buildInstructions(),
       tools,
-    });
+    };
+
+    // Add model if using AI SDK providers
+    if (['anthropic', 'claude', 'google'].includes(config.llm.provider)) {
+      agentConfig.model = this.createModel();
+    }
+
+    this.agent = new Agent(agentConfig);
+  }
+
+  /**
+   * Create AI SDK model based on provider configuration
+   *
+   * Note: API keys are set via environment variables or passed through provider config.
+   * For AI SDK providers, set: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY
+   */
+  private createModel() {
+    const { provider, model, apiKey } = this.config.llm;
+
+    // Set environment variable for the provider if apiKey is provided
+    if (apiKey) {
+      switch (provider) {
+        case 'openai':
+          process.env.OPENAI_API_KEY = apiKey;
+          break;
+        case 'anthropic':
+        case 'claude':
+          process.env.ANTHROPIC_API_KEY = apiKey;
+          break;
+        case 'google':
+          process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
+          break;
+      }
+    }
+
+    switch (provider) {
+      case 'openai':
+        return aisdk(openai(model));
+
+      case 'anthropic':
+      case 'claude':
+        return aisdk(anthropic(model));
+
+      case 'google':
+        return aisdk(google(model));
+
+      case 'custom':
+        // For custom providers, users should configure the model themselves
+        throw new AgentError(
+          'Custom provider requires manual model configuration',
+          'UNSUPPORTED_PROVIDER'
+        );
+
+      default:
+        // Default to OpenAI if provider is not recognized
+        console.warn(`Unknown provider "${provider}", defaulting to OpenAI`);
+        return aisdk(openai(model));
+    }
   }
 
   /**
