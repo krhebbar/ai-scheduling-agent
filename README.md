@@ -2,7 +2,7 @@
 
 **Intelligent meeting scheduling using natural language understanding and AI-powered recommendations.**
 
-Built on top of production-tested scheduling algorithms, this agent adds a natural language interface with smart recommendations, conflict resolution, and preference learning.
+An experimental open-source project that adds a natural language interface with smart recommendations, conflict resolution, and preference learning to scheduling workflows.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
@@ -543,7 +543,7 @@ MIT License - see [LICENSE](./LICENSE) for details.
 ## 🙏 Acknowledgments
 
 Built on top of:
-- [interview-scheduling-engine](https://github.com/krhebber/interview-scheduling-engine) - Production scheduling algorithms
+- [interview-scheduling-engine](https://github.com/krhebber/interview-scheduling-engine) - Experimental scheduling algorithms
 - [OpenAI API](https://openai.com) - GPT-4 for natural language understanding
 - [pgvector](https://github.com/pgvector/pgvector) - Vector similarity for preference matching
 
