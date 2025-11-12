@@ -1,17 +1,18 @@
 /**
- * Scheduling Agent
+ * Scheduling Agent (Migrated to OpenAI Agents JS SDK)
  *
- * Main AI agent class that orchestrates all components for intelligent scheduling.
+ * Main AI agent class that orchestrates scheduling using the OpenAI Agents SDK.
  *
- * Author: Ravindra Kanchikare (krhebbar)
+ * Author: Ravindra Kanchikare (krhebber)
  * License: MIT
  */
 
+import { Agent, run, tool } from '@openai/agents';
+import { z } from 'zod';
 import {
   AgentConfig,
   AgentResponse,
   ParsedRequest,
-  SmartSlotRecommendation,
   ConversationContext,
   SchedulingPreferences,
   SchedulingHistory,
@@ -21,26 +22,25 @@ import {
 import { RequestParser } from '../nlu';
 import { SlotRecommender, ConflictResolver, PreferenceEngine } from '../intelligence';
 import { SchedulingAdapter } from '../integration';
-import { OpenAILLMProvider } from '../llm/providers/openai';
 
 /**
- * Scheduling Agent
+ * Scheduling Agent powered by OpenAI Agents SDK
  *
  * AI-powered scheduling assistant that understands natural language,
  * makes smart recommendations, and handles complex scheduling scenarios.
  *
  * Features:
- * - Natural language understanding
+ * - Natural language understanding (via OpenAI Agents SDK)
  * - Smart slot recommendations based on preferences
  * - Intelligent conflict resolution
  * - Multi-turn conversations
  * - Preference learning
  */
 export class SchedulingAgent {
-  private llmProvider: OpenAILLMProvider;
-  private requestParser: RequestParser;
+  private agent: Agent;
+  private _requestParser: RequestParser;
   private slotRecommender: SlotRecommender;
-  private conflictResolver: ConflictResolver;
+  private _conflictResolver: ConflictResolver;
   private preferenceEngine: PreferenceEngine;
   private schedulingAdapter: SchedulingAdapter;
 
@@ -50,48 +50,319 @@ export class SchedulingAgent {
   private schedulingHistory: Map<string, SchedulingHistory[]> = new Map();
 
   constructor(private config: AgentConfig) {
-    // Initialize LLM provider
-    this.llmProvider = new OpenAILLMProvider({
-      apiKey: config.llm.apiKey,
-      model: config.llm.model,
-      temperature: config.llm.temperature,
-      maxTokens: config.llm.maxTokens,
-    });
-
-    // Initialize components
-    this.requestParser = new RequestParser(this.llmProvider);
-    this.slotRecommender = new SlotRecommender(this.llmProvider);
-    this.conflictResolver = new ConflictResolver(this.llmProvider);
+    // Initialize components (keeping domain logic intact)
+    this._requestParser = new RequestParser(undefined as any); // Will be updated to not require LLM provider
+    this.slotRecommender = new SlotRecommender(undefined as any);
+    this._conflictResolver = new ConflictResolver(undefined as any);
     this.preferenceEngine = new PreferenceEngine();
     this.schedulingAdapter = new SchedulingAdapter(
       undefined,
       config.scheduling.timezone
     );
+
+    // Create tools for the agent
+    const tools = this.createTools();
+
+    // Initialize OpenAI Agents SDK Agent
+    this.agent = new Agent({
+      name: 'SchedulingAgent',
+      instructions: this.buildInstructions(),
+      tools,
+    });
   }
 
   /**
-   * Process natural language message from user
+   * Build agent instructions from config and domain knowledge
+   */
+  private buildInstructions(): string {
+    return `You are an intelligent scheduling assistant that helps users schedule, reschedule, and manage interviews and meetings.
+
+Your capabilities:
+1. **Natural Language Understanding**: Parse user requests to extract scheduling intent, people involved, dates/times, and other relevant details
+2. **Smart Recommendations**: Recommend optimal time slots based on preferences, load balancing, and historical data
+3. **Conflict Resolution**: Detect and resolve scheduling conflicts intelligently
+4. **Multi-turn Conversations**: Handle follow-up questions and collect missing information naturally
+
+Instructions:
+- Always be professional, friendly, and helpful
+- Ask clarifying questions when information is missing or ambiguous
+- Consider user preferences and historical patterns when making recommendations
+- Explain your reasoning when suggesting time slots
+- Handle conflicts gracefully and propose alternatives
+- Confirm actions before making changes to schedules
+
+Timezone: ${this.config.scheduling.timezone}
+Confidence Threshold: ${this.config.intelligence?.minConfidenceThreshold || 0.7}`;
+  }
+
+  /**
+   * Create tools for the agent
+   */
+  private createTools() {
+    // Tool 1: Parse scheduling request
+    const parseRequestTool = tool({
+      name: 'parse_scheduling_request',
+      description: 'Parse a natural language scheduling request to extract intent and entities',
+      parameters: z.object({
+        message: z.string().describe('The user message to parse'),
+        userId: z.string().describe('The user ID for context'),
+      }),
+      execute: async ({ message, userId }) => {
+        try {
+          const context = this.getOrCreateConversation(userId);
+
+          // Use the domain-specific parser
+          // For now, create a simple parsed response since we're removing LLM dependency
+          const parsed: ParsedRequest = await this.parseMessageWithoutLLM(message, context);
+
+          // Update conversation history
+          this.updateConversationHistory(context, message, parsed);
+          this.activeConversations.set(userId, context);
+
+          return {
+            success: true,
+            intent: parsed.intent,
+            entities: parsed.entities,
+            confidence: parsed.confidence,
+            clarifications: parsed.clarifications,
+            ambiguities: parsed.ambiguities,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    });
+
+    // Tool 2: Find and recommend slots
+    const findSlotsTool = tool({
+      name: 'find_available_slots',
+      description: 'Find available time slots and provide smart recommendations',
+      parameters: z.object({
+        userId: z.string().describe('The user ID'),
+        entities: z.any().describe('Extracted entities from the request'),
+        topN: z.number().optional().default(5).describe('Number of recommendations to return'),
+      }),
+      execute: async ({ userId, entities, topN }) => {
+        try {
+          // Find available slots
+          const slots = await this.schedulingAdapter.findSlots(entities);
+
+          if (slots.length === 0) {
+            return {
+              success: false,
+              message: 'No available slots found',
+              slots: [],
+            };
+          }
+
+          // Get user preferences
+          const preferences = this.userPreferences.get(userId);
+          const history = this.schedulingHistory.get(userId);
+
+          // Apply smart recommendations
+          this.slotRecommender.updateData(
+            preferences ? [preferences] : undefined,
+            history
+          );
+
+          const recommendations = await this.slotRecommender.recommend(
+            slots.map((s) => ({
+              id: s.id,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              interviewers: s.interviewers,
+              loadInfo: s.loadInfo,
+            })),
+            topN
+          );
+
+          return {
+            success: true,
+            count: recommendations.length,
+            recommendedSlots: recommendations,
+            message: `Found ${recommendations.length} recommended time slots`,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    });
+
+    // Tool 3: Book a slot
+    const bookSlotTool = tool({
+      name: 'book_time_slot',
+      description: 'Book a specific time slot for a candidate',
+      parameters: z.object({
+        userId: z.string().describe('The user ID'),
+        slotId: z.string().describe('The slot ID to book'),
+        candidateName: z.string().describe('Candidate name'),
+        candidateEmail: z.string().describe('Candidate email'),
+      }),
+      execute: async ({ userId: _userId, slotId, candidateName, candidateEmail }) => {
+        try {
+          const candidateInfo = {
+            name: candidateName,
+            email: candidateEmail,
+          };
+
+          // Verify slot is still available
+          const isAvailable = await this.schedulingAdapter.verifySlot(slotId);
+
+          if (!isAvailable) {
+            return {
+              success: false,
+              message: 'That time slot is no longer available',
+            };
+          }
+
+          // Book the slot
+          const result = await this.schedulingAdapter.bookSlot(slotId, candidateInfo);
+
+          if (result.success) {
+            return {
+              success: true,
+              message: `Successfully scheduled interview for ${candidateName}`,
+              meetingId: result.meetingId,
+              calendarLinks: result.calendarLinks,
+            };
+          }
+
+          return {
+            success: false,
+            message: 'Failed to book the slot',
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    });
+
+    // Tool 4: Check availability
+    const checkAvailabilityTool = tool({
+      name: 'check_availability',
+      description: 'Check availability for a given time range and criteria',
+      parameters: z.object({
+        userId: z.string().describe('The user ID'),
+        entities: z.any().describe('Search criteria (date range, participants, etc.)'),
+      }),
+      execute: async ({ userId: _userId, entities }) => {
+        try {
+          const slots = await this.schedulingAdapter.findSlots(entities);
+
+          return {
+            success: true,
+            count: slots.length,
+            message: `Found ${slots.length} available time slots`,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    });
+
+    // Tool 5: Cancel a slot
+    const cancelSlotTool = tool({
+      name: 'cancel_meeting',
+      description: 'Cancel an existing interview or meeting',
+      parameters: z.object({
+        userId: z.string().describe('The user ID'),
+        meetingId: z.string().describe('The meeting ID to cancel'),
+      }),
+      execute: async ({ userId: _userId, meetingId }) => {
+        try {
+          await this.schedulingAdapter.cancelSlot(meetingId);
+
+          return {
+            success: true,
+            message: `Successfully cancelled interview ${meetingId}`,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    });
+
+    // Tool 6: Learn user preferences
+    const learnPreferencesTool = tool({
+      name: 'learn_preferences',
+      description: 'Learn scheduling preferences from historical data',
+      parameters: z.object({
+        userId: z.string().describe('The user ID'),
+        history: z.array(z.any()).describe('Historical scheduling data'),
+      }),
+      execute: async ({ userId, history }) => {
+        try {
+          const preferences = await this.preferenceEngine.learnPreferences(userId, history);
+          this.userPreferences.set(userId, preferences);
+          this.schedulingHistory.set(userId, history);
+
+          return {
+            success: true,
+            message: 'Successfully learned user preferences',
+            preferences,
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    });
+
+    return [
+      parseRequestTool,
+      findSlotsTool,
+      bookSlotTool,
+      checkAvailabilityTool,
+      cancelSlotTool,
+      learnPreferencesTool,
+    ];
+  }
+
+  /**
+   * Process natural language message from user (main entry point)
    */
   async processMessage(
     userId: string,
     message: string
   ): Promise<AgentResponse> {
     try {
-      // Get or create conversation context
-      const context = this.getOrCreateConversation(userId);
+      // Use OpenAI Agents SDK to run the agent
+      const input = `User ID: ${userId}\nMessage: ${message}\n\nPlease process this scheduling request. First parse the request to understand intent and entities, then take appropriate action.`;
 
-      // Parse the message
-      const parsed = await this.requestParser.parse(message, context);
+      const result = await run(this.agent, input);
 
-      // Update conversation history
-      this.updateConversationHistory(context, message, parsed);
+      // Get conversation context
+      const context = this.activeConversations.get(userId);
 
-      // Handle based on intent
-      const response = await this.handleIntent(userId, parsed, context);
+      // Extract response data from agent output
+      // The agent will have called tools and generated a natural language response
+      const response: AgentResponse = {
+        message: result.finalOutput || 'I processed your request.',
+        confidence: 0.9, // Default confidence
+      };
 
       // Update conversation state
-      context.updatedAt = new Date().toISOString();
-      this.activeConversations.set(userId, context);
+      if (context) {
+        context.updatedAt = new Date().toISOString();
+        this.activeConversations.set(userId, context);
+      }
 
       return response;
     } catch (error) {
@@ -104,220 +375,7 @@ export class SchedulingAgent {
   }
 
   /**
-   * Handle different intents
-   */
-  private async handleIntent(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    switch (parsed.intent) {
-      case 'schedule':
-        return await this.handleSchedule(userId, parsed, context);
-
-      case 'reschedule':
-        return await this.handleReschedule(userId, parsed, context);
-
-      case 'cancel':
-        return await this.handleCancel(userId, parsed, context);
-
-      case 'check_availability':
-        return await this.handleCheckAvailability(userId, parsed, context);
-
-      case 'get_details':
-        return await this.handleGetDetails(userId, parsed, context);
-
-      default:
-        return await this.handleUnknown(userId, parsed, context);
-    }
-  }
-
-  /**
-   * Handle schedule intent
-   */
-  private async handleSchedule(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    // Check if we have enough information
-    if (parsed.clarifications && parsed.clarifications.length > 0) {
-      context.state = 'collecting_info';
-      context.pendingRequest = {
-        intent: parsed.intent,
-        entities: parsed.entities,
-        missingInfo: parsed.clarifications,
-      };
-
-      return {
-        message: await this.generateClarificationMessage(parsed),
-        clarifications: parsed.clarifications,
-        confidence: parsed.confidence.overall,
-      };
-    }
-
-    // Find available slots
-    context.state = 'recommending_slots';
-    const slots = await this.schedulingAdapter.findSlots(parsed.entities);
-
-    if (slots.length === 0) {
-      return {
-        message: 'I couldn\'t find any available slots matching your criteria. Would you like to try different dates or times?',
-        confidence: 1.0,
-        nextSteps: ['Try different dates', 'Adjust requirements'],
-      };
-    }
-
-    // Get user preferences
-    const preferences = this.userPreferences.get(userId);
-    const history = this.schedulingHistory.get(userId);
-
-    // Apply smart recommendations
-    this.slotRecommender.updateData(
-      preferences ? [preferences] : undefined,
-      history
-    );
-
-    const recommendations = await this.slotRecommender.recommend(
-      slots.map((s) => ({
-        id: s.id,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        interviewers: s.interviewers,
-        loadInfo: s.loadInfo,
-      })),
-      5 // Top 5 recommendations
-    );
-
-    // Generate natural language response
-    const message = await this.llmProvider.generateResponse(parsed, {
-      recommendedSlots: recommendations,
-    });
-
-    return {
-      message,
-      recommendedSlots: recommendations,
-      confidence: parsed.confidence.overall,
-      nextSteps: ['Select a time slot', 'Request different options'],
-    };
-  }
-
-  /**
-   * Handle reschedule intent
-   */
-  private async handleReschedule(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    if (!parsed.entities.meetingId) {
-      return {
-        message: 'Which interview would you like to reschedule? Please provide the meeting ID or describe the interview.',
-        clarifications: ['Meeting ID or interview description'],
-        confidence: parsed.confidence.overall,
-      };
-    }
-
-    // Find new slots (similar to schedule)
-    const slots = await this.schedulingAdapter.findSlots(parsed.entities);
-    const recommendations = await this.slotRecommender.recommend(
-      slots.map((s) => ({
-        id: s.id,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        interviewers: s.interviewers,
-      })),
-      3
-    );
-
-    const message = `I found ${recommendations.length} alternative times for rescheduling. Here are the best options:`;
-
-    return {
-      message,
-      recommendedSlots: recommendations,
-      confidence: parsed.confidence.overall,
-      nextSteps: ['Select new time', 'Cancel request'],
-    };
-  }
-
-  /**
-   * Handle cancel intent
-   */
-  private async handleCancel(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    if (!parsed.entities.meetingId) {
-      return {
-        message: 'Which interview would you like to cancel? Please provide the meeting ID.',
-        clarifications: ['Meeting ID'],
-        confidence: parsed.confidence.overall,
-      };
-    }
-
-    await this.schedulingAdapter.cancelSlot(parsed.entities.meetingId);
-
-    return {
-      message: `I've cancelled the interview (${parsed.entities.meetingId}). All participants will be notified.`,
-      actions: [{
-        type: 'cancelled',
-        details: { meetingId: parsed.entities.meetingId },
-      }],
-      confidence: 1.0,
-    };
-  }
-
-  /**
-   * Handle check availability intent
-   */
-  private async handleCheckAvailability(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    const slots = await this.schedulingAdapter.findSlots(parsed.entities);
-
-    const message = `I found ${slots.length} available time slots. Would you like me to recommend the best options?`;
-
-    return {
-      message,
-      confidence: parsed.confidence.overall,
-      nextSteps: ['See recommendations', 'Try different criteria'],
-    };
-  }
-
-  /**
-   * Handle get details intent
-   */
-  private async handleGetDetails(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    return {
-      message: 'Interview details retrieval is not yet implemented. Please provide a meeting ID.',
-      confidence: 0.5,
-    };
-  }
-
-  /**
-   * Handle unknown intent
-   */
-  private async handleUnknown(
-    userId: string,
-    parsed: ParsedRequest,
-    context: ConversationContext
-  ): Promise<AgentResponse> {
-    return {
-      message: 'I\'m not sure what you\'d like me to do. I can help you schedule, reschedule, or cancel interviews. What would you like to do?',
-      clarifications: ['Schedule new interview', 'Reschedule existing', 'Cancel interview', 'Check availability'],
-      confidence: parsed.confidence.overall,
-    };
-  }
-
-  /**
-   * Book a specific slot
+   * Book a specific slot (legacy method for backward compatibility)
    */
   async bookSlot(
     userId: string,
@@ -368,7 +426,7 @@ export class SchedulingAgent {
   }
 
   /**
-   * Learn preferences from historical data
+   * Learn preferences from historical data (legacy method)
    */
   async learnPreferences(userId: string, history: SchedulingHistory[]): Promise<void> {
     try {
@@ -378,6 +436,39 @@ export class SchedulingAgent {
     } catch (error) {
       console.error('Failed to learn preferences:', error);
     }
+  }
+
+  /**
+   * Simple parser without LLM (for MVP - can be enhanced later)
+   */
+  private async parseMessageWithoutLLM(
+    message: string,
+    _context: ConversationContext
+  ): Promise<ParsedRequest> {
+    // Simple rule-based parsing for MVP
+    const lowerMessage = message.toLowerCase();
+
+    let intent: ParsedRequest['intent'] = 'unknown';
+    if (lowerMessage.includes('schedule') || lowerMessage.includes('book')) {
+      intent = 'schedule';
+    } else if (lowerMessage.includes('reschedule') || lowerMessage.includes('move')) {
+      intent = 'reschedule';
+    } else if (lowerMessage.includes('cancel')) {
+      intent = 'cancel';
+    } else if (lowerMessage.includes('available') || lowerMessage.includes('availability')) {
+      intent = 'check_availability';
+    }
+
+    return {
+      rawText: message,
+      intent,
+      entities: {},
+      confidence: {
+        intent: 0.7,
+        entities: {},
+        overall: 0.7,
+      },
+    };
   }
 
   /**
@@ -420,18 +511,6 @@ export class SchedulingAgent {
     if (context.history.length > 10) {
       context.history = context.history.slice(-10);
     }
-  }
-
-  /**
-   * Generate clarification message
-   */
-  private async generateClarificationMessage(parsed: ParsedRequest): Promise<string> {
-    if (!parsed.clarifications || parsed.clarifications.length === 0) {
-      return 'I need more information to help you schedule this interview.';
-    }
-
-    const questions = parsed.clarifications.slice(0, 2); // Ask max 2 questions at a time
-    return `I'd like to help you schedule this interview. ${questions.join(' ')}`;
   }
 
   /**
