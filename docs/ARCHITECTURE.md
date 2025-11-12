@@ -4,14 +4,14 @@ This document provides a technical overview of the AI Scheduling Agent architect
 
 ## System Overview
 
-The AI Scheduling Agent is an intelligent meeting scheduler that combines natural language understanding with production-tested scheduling algorithms. It adds an AI layer on top of constraint-based scheduling to enable conversational interactions and smart recommendations.
+The AI Scheduling Agent is an experimental intelligent meeting scheduler that combines natural language understanding with AI-powered scheduling algorithms. It adds an AI layer on top of constraint-based scheduling to enable conversational interactions and smart recommendations.
 
 ### Design Principles
 
 1. **Separation of Concerns** - NLU, intelligence, and scheduling are separate modules
 2. **Extensibility** - Pluggable LLM providers and scheduling engines
 3. **Type Safety** - Comprehensive TypeScript types throughout
-4. **Production-Ready** - Built on proven scheduling algorithms
+4. **Experimental** - Exploring AI-powered scheduling algorithms
 5. **Developer-Friendly** - Clean APIs and extensive documentation
 
 ## Architecture Diagram
