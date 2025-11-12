@@ -7,4 +7,5 @@
  * License: MIT
  */
 
-export { SchedulingAdapter, EngineSlot } from './schedulingAdapter';
+export { SchedulingAdapter } from './schedulingAdapter';
+export type { EngineSlot } from './schedulingAdapter';

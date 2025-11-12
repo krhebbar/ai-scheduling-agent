@@ -8,10 +8,6 @@
  */
 
 export { SlotRecommender } from './slotRecommender';
-export {
-  ConflictResolver,
-  Conflict,
-  ConflictType,
-  ResolutionSuggestion,
-} from './conflictResolver';
+export { ConflictResolver } from './conflictResolver';
+export type { Conflict, ConflictType, ResolutionSuggestion } from './conflictResolver';
 export { PreferenceEngine } from './preferenceEngine';

@@ -61,8 +61,5 @@ export {
 // Integration
 export { SchedulingAdapter } from './integration';
 
-// LLM providers
-export { OpenAILLMProvider, createOpenAIProvider } from './llm/providers/openai';
-
 // Version
 export const VERSION = '1.0.0';

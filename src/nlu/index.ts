@@ -7,6 +7,8 @@
  * License: MIT
  */
 
-export { IntentRecognizer, IntentRecognitionResult } from './intentRecognizer';
-export { EntityExtractor, EntityExtractionResult } from './entityExtractor';
+export { IntentRecognizer } from './intentRecognizer';
+export type { IntentRecognitionResult } from './intentRecognizer';
+export { EntityExtractor } from './entityExtractor';
+export type { EntityExtractionResult } from './entityExtractor';
 export { RequestParser, createRequestParser } from './requestParser';
