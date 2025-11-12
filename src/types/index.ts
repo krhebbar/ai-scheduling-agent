@@ -235,11 +235,13 @@ export interface AgentResponse {
 export interface AgentConfig {
   /** LLM provider config */
   llm: {
-    provider: 'openai' | 'claude' | 'custom';
+    provider: 'openai' | 'anthropic' | 'google' | 'claude' | 'custom';
     apiKey: string;
     model: string;
     temperature?: number;
     maxTokens?: number;
+    /** Provider-specific metadata (e.g., caching options for Anthropic) */
+    providerMetadata?: Record<string, any>;
   };
   /** Scheduling engine config */
   scheduling: {

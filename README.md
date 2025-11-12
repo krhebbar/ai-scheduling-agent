@@ -115,6 +115,110 @@ await agent.bookSlot(
 
 ---
 
+## 🌐 Multi-Model Support
+
+The AI Scheduling Agent supports multiple LLM providers through Vercel's AI SDK integration.
+
+### Supported Providers
+
+- **OpenAI** - GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
+- **Anthropic** - Claude 3.5 Sonnet, Claude 3 Opus, Claude 3 Haiku
+- **Google** - Gemini 1.5 Pro, Gemini 1.5 Flash
+
+### Using Different Providers
+
+#### OpenAI (GPT-4)
+```typescript
+const agent = new SchedulingAgent({
+  llm: {
+    provider: 'openai',
+    apiKey: process.env.OPENAI_API_KEY!,
+    model: 'gpt-4-turbo-preview',
+  },
+  // ... other config
+});
+```
+
+#### Anthropic (Claude)
+```typescript
+const agent = new SchedulingAgent({
+  llm: {
+    provider: 'anthropic',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: 'claude-3-5-sonnet-20241022',
+    // Enable prompt caching for 90% cost savings
+    providerMetadata: {
+      anthropic: {
+        cacheControl: { type: 'ephemeral' }
+      }
+    }
+  },
+  // ... other config
+});
+```
+
+#### Google (Gemini)
+```typescript
+const agent = new SchedulingAgent({
+  llm: {
+    provider: 'google',
+    apiKey: process.env.GOOGLE_API_KEY!,
+    model: 'gemini-1.5-pro',
+  },
+  // ... other config
+});
+```
+
+### Cost Comparison
+
+| Model | Cost per Request* | Best For |
+|-------|------------------|----------|
+| **GPT-4 Turbo** | $0.010 | Complex reasoning, conflict resolution |
+| **GPT-3.5 Turbo** | $0.001 | Simple classification, fast responses |
+| **Claude 3.5 Sonnet** | $0.007 | Natural conversation, entity extraction |
+| **Gemini 1.5 Pro** | $0.002 | Balanced performance and cost |
+| **Gemini 1.5 Flash** | $0.0002 | High-volume, simple tasks |
+
+*Estimated cost for typical scheduling request (~400 input, ~200 output tokens)
+
+### Strategic Model Selection
+
+```typescript
+// Use cheaper models for simple tasks
+const quickAgent = new SchedulingAgent({
+  llm: {
+    provider: 'google',
+    model: 'gemini-1.5-flash',  // 40x cheaper than GPT-4
+    apiKey: process.env.GOOGLE_API_KEY!,
+  },
+  // ...
+});
+
+// Use powerful models for complex reasoning
+const smartAgent = new SchedulingAgent({
+  llm: {
+    provider: 'anthropic',
+    model: 'claude-3-5-sonnet-20241022',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+  // ...
+});
+```
+
+### Running the Multi-Model Example
+
+```bash
+# Set API keys
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GOOGLE_API_KEY="..."
+
+# Run example
+npm run example:multi-model
+```
+
+---
+
 ## 💡 Use Cases
 
 - **Recruiting Teams** - Schedule candidate interviews via chat/Slack
@@ -468,6 +572,7 @@ npm run build
 npm run example:basic
 npm run example:smart
 npm run example:conflicts
+npm run example:multi-model
 ```
 
 ### Project Structure
@@ -517,11 +622,12 @@ ai-scheduling-agent/
 Contributions welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 **Areas for contribution:**
-- Additional LLM providers (Claude, Gemini)
+- Additional LLM providers (Mistral, LLaMA, etc.)
 - Calendar integrations (Google, Outlook)
 - Custom embedding models
 - Additional conflict types
 - Performance optimizations
+- Model-specific optimizations
 
 ---
 
